@@ -2,35 +2,59 @@ import streamlit as st
 import pandas as pd
 import json
 
-st.title("LLM Benchmark Dashboard")
+st.title("🚀 LLM Benchmark Dashboard")
 
-# Load data
 with open("results.json", "r") as f:
     data = json.load(f)
 
 df = pd.DataFrame(data)
-df.rename(columns={"category": "task"}, inplace=True)
+
+# Expand scores
+scores_df = df["scores"].apply(pd.Series)
+df = pd.concat([df, scores_df], axis=1)
 
 # Sidebar filters
-models = st.sidebar.multiselect("Select Models", df["model"].unique(), default=df["model"].unique())
-tasks = st.sidebar.multiselect("Select Tasks", df["task"].unique(), default=df["task"].unique())
+models = st.sidebar.multiselect(
+    "Select Models",
+    df["model"].unique(),
+    default=df["model"].unique()
+)
 
-filtered = df[(df["model"].isin(models)) & (df["task"].isin(tasks))]
+categories = st.sidebar.multiselect(
+    "Select Categories",
+    df["category"].unique(),
+    default=df["category"].unique()
+)
 
-st.write("### 📊 Raw Data")
-st.dataframe(filtered)
+filtered = df[
+    (df["model"].isin(models)) &
+    (df["category"].isin(categories))
+]
 
+# -----------------------
 # Leaderboard
-st.write("### 🏆 Leaderboard")
-leaderboard = filtered.groupby("model").mean(numeric_only=True).sort_values("latency_sec")
-st.dataframe(leaderboard)
+# -----------------------
+st.subheader("🏆 Leaderboard")
 
-# Charts
-st.write("### ⚡ Latency")
-st.bar_chart(leaderboard["latency_sec"])
+leaderboard = (
+    filtered.groupby("model")["total_score"]
+    .mean()
+    .sort_values(ascending=False)
+)
 
-st.write("### 💻 CPU Usage")
-st.bar_chart(leaderboard["cpu_percent"])
+st.bar_chart(leaderboard)
 
-st.write("### 🧠 Memory Usage")
-st.bar_chart(leaderboard["memory_percent"])
+# -----------------------
+# Category Performance
+# -----------------------
+st.subheader("📊 Category Performance")
+
+st.bar_chart(
+    filtered.groupby(["category", "model"])["total_score"].mean().unstack()
+)
+
+# -----------------------
+# Raw Data
+# -----------------------
+st.subheader("📄 Raw Results")
+st.dataframe(filtered)
