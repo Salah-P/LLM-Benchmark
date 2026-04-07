@@ -27,6 +27,43 @@ OUTPUT_FILE = "results.json"
 
 
 # -------------------------------
+# 🔹 NEW HELPER FUNCTION (Exact Copy)
+# -------------------------------
+def stream_response_metrics(model, prompt):
+    start_time = time.time()
+    first_token_time = None
+    full_response = ""
+
+    token_count = 0
+
+    stream = ollama.chat(
+        model=model,
+        messages=[{"role": "user", "content": prompt}],
+        stream=True
+    )
+
+    for chunk in stream:
+        current_time = time.time()
+
+        if first_token_time is None:
+            first_token_time = current_time
+
+        content = chunk['message']['content']
+        full_response += content
+
+        # crude token approximation (can improve later)
+        token_count += len(content.split())
+
+    end_time = time.time()
+
+    total_latency = end_time - start_time
+    ttft = first_token_time - start_time if first_token_time else None
+    tps = token_count / total_latency if total_latency > 0 else 0
+
+    return full_response, token_count, ttft, total_latency, tps
+
+
+# -------------------------------
 # 🤖 LLM-based Quality Evaluation
 # -------------------------------
 def evaluate_response(prompt, response):
@@ -100,62 +137,77 @@ def score_efficiency(cpu, memory):
     return max(score, 1)
 
 
+def score_streaming(ttft, tps):
+    if ttft is None:
+        ttft = 5.0  # fallback
+    ttft_score = 5 if ttft < 1 else 4 if ttft < 3 else 3 if ttft < 5 else 2 if ttft < 10 else 1
+    tps_score = 5 if tps > 20 else 4 if tps > 10 else 3 if tps > 5 else 2 if tps > 2 else 1
+    return (ttft_score + tps_score) // 2
+
+
 # -------------------------------
-# 🧪 Run Benchmark
+# 🧪 Run Benchmark (UPDATED INFERENCE BLOCK)
 # -------------------------------
 def run_benchmark():
     results = []
 
     for task in TASKS:
+        category = task["category"]
+        prompt = task["prompt"]
+        
         for model in MODELS:
-            print(f"\n🚀 Running {model} on {task['category']} task...")
+            print(f"\n🚀 Running {model} on {category} task...")
 
-            start_time = time.time()
+            # ✅ NEW: Single line replacement
+            response, token_count, ttft, latency, tps = stream_response_metrics(model, prompt)
 
-            response = ollama.chat(
-                model=model,
-                messages=[{"role": "user", "content": task["prompt"]}]
-            )
-
-            end_time = time.time()
-
-            latency = round(end_time - start_time, 2)
+            # Get system metrics
             cpu = psutil.cpu_percent()
             memory = psutil.virtual_memory().percent
 
-            response_text = response["message"]["content"]
-            length = len(response_text)
-
             # Scores
-            length_score = score_length(length)
+            length_score = score_length(len(response))
             latency_score = score_latency(latency)
             efficiency_score = score_efficiency(cpu, memory)
-            quality_score = evaluate_response(task["prompt"], response_text)
+            quality_score = evaluate_response(prompt, response)
+            streaming_score = score_streaming(ttft, tps)
 
-            total_score = length_score + latency_score + efficiency_score + quality_score
-
-            result_entry = {
-                "timestamp": datetime.now().isoformat(),
-                "model": model,
-                "category": task["category"],
-                "prompt": task["prompt"],
-                "response": response_text,
-                "latency_sec": latency,
-                "cpu_percent": cpu,
-                "memory_percent": memory,
-                "response_length": length,
-                "scores": {
-                    "length_score": length_score,
-                    "latency_score": latency_score,
-                    "efficiency_score": efficiency_score,
-                    "quality_score": quality_score,
-                    "total_score": total_score
-                }
+            scores = {
+                "length_score": length_score,
+                "latency_score": latency_score,
+                "efficiency_score": efficiency_score,
+                "quality_score": quality_score,
+                "streaming_score": streaming_score,
+                "total_score": length_score + latency_score + efficiency_score + quality_score + streaming_score
             }
 
-            results.append(result_entry)
+            # ✅ NEW: Updated result structure
+            result = {
+                "timestamp": datetime.now().isoformat(),
+                "model": model,
+                "category": category,
+                "prompt": prompt,
+                "response": response,
 
-            print(f"✅ Done | Score: {total_score}/20")
+                # Performance
+                "latency_sec": round(latency, 3),
+                "ttft_sec": round(ttft, 3) if ttft else None,
+                "tokens_per_sec": round(tps, 2),
+                "token_count": token_count,
+
+                # System
+                "cpu_percent": cpu,
+                "memory_percent": memory,
+
+                # Existing
+                "response_length": len(response),
+
+                "scores": scores
+            }
+
+            results.append(result)
+
+            print(f"✅ Done | Score: {scores['total_score']}/25 | TTFT: {ttft:.2f}s | TPS: {tps:.1f}")
 
     return results
 
