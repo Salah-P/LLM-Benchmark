@@ -1,7 +1,7 @@
 import json
 import pandas as pd
 
-with open("results.json", "r") as f:
+with open("results_structured.json", "r") as f:
     data = json.load(f)
 
 df = pd.DataFrame(data)
@@ -10,24 +10,19 @@ df = pd.DataFrame(data)
 scores_df = df["scores"].apply(pd.Series)
 df = pd.concat([df, scores_df], axis=1)
 
-# -------- GLOBAL LEADERBOARD --------
-global_leaderboard = (
-    df.groupby("model")["total_score"]
-    .mean()
-    .sort_values(ascending=False)
-    .reset_index()
-)
+# Overall leaderboard
+leaderboard = df.groupby("model").mean(numeric_only=True)
+leaderboard = leaderboard.sort_values("total_score", ascending=False)
 
-print("\n=== GLOBAL LEADERBOARD ===")
-print(global_leaderboard)
+print("\n=== 🏆 OVERALL LEADERBOARD ===")
+print(leaderboard[["total_score", "speed_score", "efficiency_score", "quality_score"]])
 
-# -------- CATEGORY LEADERBOARD --------
-category_leaderboard = (
-    df.groupby(["category", "model"])["total_score"]
-    .mean()
-    .reset_index()
-    .sort_values(["category", "total_score"], ascending=[True, False])
-)
+# Category-wise leaderboard
+print("\n=== 📊 CATEGORY LEADERBOARD ===")
+for cat in df["category"].unique():
+    sub = df[df["category"] == cat]
+    cat_board = sub.groupby("model").mean(numeric_only=True)
+    cat_board = cat_board.sort_values("total_score", ascending=False)
 
-print("\n=== CATEGORY LEADERBOARD ===")
-print(category_leaderboard)
+    print(f"\n--- {cat.upper()} ---")
+    print(cat_board[["total_score"]])
