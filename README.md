@@ -137,48 +137,51 @@ total_score = speed_score + efficiency_score + quality_score
 ## 📈 Dashboard
 
 Run the interactive dashboard:
-
+```bash
 streamlit run app.py
-
+```
 Features:
-Model filtering
-Leaderboard visualization
-Metric comparison charts
+- Model filtering
+- Leaderboard visualization
+- Metric comparison charts
 
 ## 🚀 How to Run
 
-### 1. Install Dependencies
+1. Install Dependencies
 ```bash
 pip install pandas matplotlib streamlit psutil
+```
 2. Start Ollama
+```bash
 ollama run llama3.2
+```
 3. Run Benchmark
+```bash
 python benchmark.py
+```
 4. Generate Leaderboard
+```bash
 python leaderboard.py
+```
 5. Visualize Results
+```bash
 python visualize.py
-📈 Dashboard
+```
 
-Run the interactive dashboard:
 
-streamlit run app.py
-Features:
-Model filtering
-Leaderboard visualization
-Metric comparison charts
-🔧 Future Improvements
-⏱️ Time to First Token (TTFT)
-🌡️ Temperature variance experiments (determinism vs creativity)
-🤖 LLM-as-judge quality evaluation
-📊 Advanced statistical analysis
-📄 Automated report generation (research-style PDF)
-📌 Final Note
+## 🔧 Future Improvements
+- ⏱️ Time to First Token (TTFT)
+- 🌡️ Temperature variance experiments (determinism vs creativity)
+- 🤖 LLM-as-judge quality evaluation
+- 📊 Advanced statistical analysis
+- 📄 Automated report generation (research-style PDF)
+
+## 📌 Final Note
 
 This project demonstrates how to build a research-grade LLM evaluation system from scratch, focusing on:
 
-reproducibility
-structured outputs
-real performance metrics
+- reproducibility
+- structured outputs
+- real performance metrics
 
 It serves as both a portfolio-level AI project and a foundation for advanced LLM benchmarking research.
