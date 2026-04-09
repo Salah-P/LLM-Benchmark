@@ -1,0 +1,32 @@
+{
+  "total_score":{
+    "phi3":3.5833333333,
+    "mistral":3.0233333333,
+    "llama3":2.7766666667
+  },
+  "speed_score":{
+    "phi3":3.4466666667,
+    "mistral":2.1533333333,
+    "llama3":1.785
+  },
+  "efficiency_score":{
+    "phi3":3.9,
+    "mistral":2.9433333333,
+    "llama3":2.3333333333
+  },
+  "quality_score":{
+    "phi3":3.4416666667,
+    "mistral":3.74,
+    "llama3":3.8566666667
+  },
+  "latency_sec":{
+    "phi3":3.8283333333,
+    "mistral":7.5615,
+    "llama3":8.8941666667
+  },
+  "tokens_per_sec":{
+    "phi3":12.88,
+    "mistral":7.915,
+    "llama3":6.9266666667
+  }
+}

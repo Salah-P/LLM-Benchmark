@@ -2,6 +2,7 @@ import ollama
 import time
 import json
 import psutil
+import pandas as pd
 from datetime import datetime
 from pydantic import BaseModel, ValidationError
 from typing import Optional, Tuple
@@ -121,51 +122,59 @@ def get_valid_response(model: str, prompt: str, temp: float) -> Tuple[Optional[M
 
 
 # -------------------------------
-# 🆕 UPGRADED SCORING SYSTEM (0-15 Total!)
+# 🆕 NORMALIZED SCORING SYSTEM (Research-Grade)
 # -------------------------------
-def score_speed(tokens_per_sec: float, latency: float) -> int:
-    """Speed Score (0–5): Tokens/sec + Latency"""
-    score = 0
-    if tokens_per_sec > 15: score += 3
-    elif tokens_per_sec > 8: score += 2
-    else: score += 1
-
-    if latency < 5: score += 2
-    elif latency < 15: score += 1
-    return min(score, 5)
+def normalize(value, min_val, max_val):
+    """Normalize to 0-1 range"""
+    if max_val - min_val == 0:
+        return 0
+    return (value - min_val) / (max_val - min_val)
 
 
-def score_efficiency(cpu: float, memory: float) -> int:
-    """Efficiency Score (0–5): CPU + Memory usage"""
-    score = 0
-    if cpu < 50: score += 2
-    elif cpu < 80: score += 1
+def compute_scores(results):
+    """🔥 Normalized, research-grade scoring"""
+    df = pd.DataFrame(results)
 
-    if memory < 70: score += 3
-    elif memory < 90: score += 2
-    else: score += 1
-    return min(score, 5)
+    # 🆕 Normalize all metrics (0-1 scale)
+    df["latency_norm"] = 1 - normalize(df["latency_sec"], df["latency_sec"].min(), df["latency_sec"].max())
+    df["tps_norm"] = normalize(df["tokens_per_sec"], df["tokens_per_sec"].min(), df["tokens_per_sec"].max())
+    df["cpu_norm"] = 1 - normalize(df["cpu_percent"], df["cpu_percent"].min(), df["cpu_percent"].max())
+    df["memory_norm"] = 1 - normalize(df["memory_percent"], df["memory_percent"].min(), df["memory_percent"].max())
 
+    scored_results = []
 
-def score_quality(response: str, confidence: Optional[float] = None, valid_json: bool = False) -> int:
-    """Quality Score (0–5): Length + Confidence + JSON validity"""
-    score = 0
-    
-    if valid_json: score += 1
-    if confidence and confidence > 0.8: score += 1
-    elif confidence and confidence > 0.5: score += 0.5
-    
-    length = len(response)
-    if length < 50: score += 1
-    elif length < 200: score += 2
-    elif length < 500: score += 3
-    elif length < 1000: score += 4
-    else: score += 5
-    return min(int(score), 5)
+    for i, row in df.iterrows():
+        # 🆕 Weighted composite scores (0-1 → scale to 0-5)
+        speed = 0.5 * row["latency_norm"] + 0.5 * row["tps_norm"]
+        efficiency = 0.5 * row["cpu_norm"] + 0.5 * row["memory_norm"]
+
+        # 🆕 Improved quality scoring
+        quality = 0
+        if row["valid_json"]:
+            quality += 0.2
+        if row["confidence"]:
+            quality += row["confidence"] * 0.4
+        length = row["response_length"]
+        quality += min(length / 500, 1) * 0.4  # Cap at 500 chars
+
+        # 🆕 Weighted total (Quality heavy)
+        total = (0.4 * quality + 0.3 * speed + 0.3 * efficiency) * 5  # Scale to 5 max
+
+        # Update row with normalized scores
+        row["scores"] = {
+            "speed_score": round(speed * 5, 2),
+            "efficiency_score": round(efficiency * 5, 2),
+            "quality_score": round(quality * 5, 2),
+            "total_score": round(total, 2)
+        }
+
+        scored_results.append(row.to_dict())
+
+    return scored_results
 
 
 # -------------------------------
-# 🧪 Run Structured Benchmark (FIXED Scoring)
+# 🧪 Run Structured Benchmark
 # -------------------------------
 def run_benchmark():
     results = []
@@ -184,14 +193,7 @@ def run_benchmark():
                 cpu = psutil.cpu_percent()
                 memory = psutil.virtual_memory().percent
 
-                # 🆕 UPGRADED SCORES (0-5 each)
-                speed_score = score_speed(tps, latency)
-                efficiency_score = score_efficiency(cpu, memory)
-                quality_score = score_quality(response, validated.confidence if validated else None, is_valid)
-
-                # ✅ FIXED: Only 3 core scores (Max 15!)
-                total_score = speed_score + efficiency_score + quality_score
-
+                # 🆕 Raw result (scores computed later)
                 result = {
                     "timestamp": datetime.now().isoformat(),
                     "model": model,
@@ -213,21 +215,20 @@ def run_benchmark():
                     "memory_percent": memory,
                     "response_length": len(response),
 
-                    # 🆕 NEW SCORING SYSTEM (3 metrics)
-                    "scores": {
-                        "speed_score": speed_score,
-                        "efficiency_score": efficiency_score,
-                        "quality_score": quality_score,
-                        "total_score": total_score  # Max 15!
-                    }
+                    # 🆕 Scores computed post-hoc (normalized)
+                    "scores": {}  # Placeholder
                 }
 
                 results.append(result)
 
                 status = "✅" if is_valid else "❌"
                 conf = f"{validated.confidence:.2f}" if validated else "N/A"
-                print(f"{status} | Speed:{speed_score} Eff:{efficiency_score} Qual:{quality_score} | Total:{total_score}/15")
+                print(f"{status} | Conf:{conf} | TPS:{tps:.1f} | Latency:{latency:.1f}s")
 
+    # 🔥 POST-PROCESS: Normalized scoring across ALL runs
+    print("\n🔥 Computing normalized scores...")
+    results = compute_scores(results)
+    
     return results
 
 
@@ -238,7 +239,7 @@ def save_results(results):
     with open(OUTPUT_FILE, "w") as f:
         json.dump(results, f, indent=2)
 
-    print(f"\n💾 Structured results saved to {OUTPUT_FILE}")
+    print(f"\n💾 Normalized results saved to {OUTPUT_FILE}")
 
 
 # -------------------------------
@@ -247,4 +248,10 @@ def save_results(results):
 if __name__ == "__main__":
     results = run_benchmark()
     save_results(results)
-    print(f"\n🎉 Benchmark complete! {len(results)} total runs (3-metric scoring: Max 15!)")
+    print(f"\n🎉 Benchmark complete! {len(results)} runs (🔥 Normalized scoring: Max 15!)")
+    
+    # 🆕 Print final leaderboard
+    df_final = pd.DataFrame(results)
+    leaderboard = df_final.groupby("model")["scores"].apply(lambda x: pd.Series(x).apply(lambda y: y["total_score"]).mean()).sort_values(ascending=False)
+    print("\n🏆 FINAL NORMALIZED LEADERBOARD:")
+    print(leaderboard)

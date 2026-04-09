@@ -1,7 +1,9 @@
 import json
 import pandas as pd
 
-with open("results_structured.json", "r") as f:
+INPUT_FILE = "results_structured.json"
+
+with open(INPUT_FILE, "r") as f:
     data = json.load(f)
 
 df = pd.DataFrame(data)
@@ -10,19 +12,44 @@ df = pd.DataFrame(data)
 scores_df = df["scores"].apply(pd.Series)
 df = pd.concat([df, scores_df], axis=1)
 
-# Overall leaderboard
-leaderboard = df.groupby("model").mean(numeric_only=True)
-leaderboard = leaderboard.sort_values("total_score", ascending=False)
+# -----------------------------
+# 🏆 Overall Leaderboard
+# -----------------------------
+leaderboard = df.groupby("model").agg({
+    "total_score": "mean",
+    "speed_score": "mean",
+    "efficiency_score": "mean",
+    "quality_score": "mean",
+    "latency_sec": "mean",
+    "tokens_per_sec": "mean"
+}).sort_values("total_score", ascending=False)
 
 print("\n=== 🏆 OVERALL LEADERBOARD ===")
-print(leaderboard[["total_score", "speed_score", "efficiency_score", "quality_score"]])
+print(leaderboard)
 
-# Category-wise leaderboard
+leaderboard.to_json("leaderboard.json", indent=2)
+
+# -----------------------------
+# 📊 Category Leaderboard
+# -----------------------------
+category_board = (
+    df.groupby(["category", "model"])["total_score"]
+    .mean()
+    .reset_index()
+    .sort_values(["category", "total_score"], ascending=[True, False])
+)
+
 print("\n=== 📊 CATEGORY LEADERBOARD ===")
-for cat in df["category"].unique():
-    sub = df[df["category"] == cat]
-    cat_board = sub.groupby("model").mean(numeric_only=True)
-    cat_board = cat_board.sort_values("total_score", ascending=False)
+print(category_board)
 
-    print(f"\n--- {cat.upper()} ---")
-    print(cat_board[["total_score"]])
+category_board.to_json("category_leaderboard.json", indent=2)
+
+# -----------------------------
+# 🧠 Consistency (Variance)
+# -----------------------------
+consistency = df.groupby("model")["total_score"].std().sort_values()
+
+print("\n=== 🧠 CONSISTENCY (Lower = Better) ===")
+print(consistency)
+
+consistency.to_json("consistency.json", indent=2)
