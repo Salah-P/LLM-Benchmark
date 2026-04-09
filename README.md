@@ -138,7 +138,6 @@ total_score = speed_score + efficiency_score + quality_score
 
 Run the interactive dashboard:
 
-```bash
 streamlit run app.py
 
 Features:
